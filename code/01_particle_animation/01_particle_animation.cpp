@@ -28,6 +28,8 @@
 #include "Camera.h"
 #include "Mesh.h"
 
+using namespace glm;
+using namespace std;
 
 // Properties
 const GLuint WIDTH = 800, HEIGHT = 600;
@@ -196,8 +198,6 @@ int main(int argc, const char** argv)
 	groundMesh.Init(PlaneMeshData(glm::vec2(10.0f, 10.0f)));
 
 	Object particle, ground;
-	particle.SetMesh(&particleMesh);
-	particle.SetShader(&defaultShader);
 
 	ground.SetMesh(&groundMesh);
 	ground.SetShader(&defaultShader);
@@ -211,12 +211,34 @@ int main(int argc, const char** argv)
 	CREATE THE PARTICLE(S) YOU NEED TO COMPLETE THE TASKS HERE
 	*/
 
+	// Define a vector of particles
+	std::vector<Object> particles;
+
+	// Initialize the particles
+	for (int i = 0; i < 3; ++i) {
+		Object particle;
+		particle.SetMesh(&particleMesh);
+		particle.SetShader(&defaultShader);
+		particle.SetColor(glm::vec4(1, 0, 0, 1));
+		particle.Translate(glm::vec3(0.0f, 5.0f + i, 0.0f));
+		particles.push_back(particle);
+	}
+
+
 	GLfloat timeStart = (GLfloat)glfwGetTime();
 	GLfloat lastFrameTimeSinceStart = timeStart;
 	const float ANIMATION_SPEED = 11.0f; // increase this if you want time to move faster
+
+	float particleAcceleration = -0.1f;
+	float particleVelocity = 0.0f;
+
+	float particleAmplitude = 0.03f;
+	float particleFrequency = 0.1f;
+
 	// Game loop
 	while (!glfwWindowShouldClose(window))
 	{
+
 		GLfloat timeSinceStart = (GLfloat)glfwGetTime() - timeStart;
 		// the animation can be sped up or slowed down by multiplying timeSinceStart by a factor.
 		timeSinceStart *= ANIMATION_SPEED;
@@ -249,20 +271,47 @@ int main(int argc, const char** argv)
 
 		// 1 - make particle fall with accelerating speed using the .Translate method
 
+		//particleVelocity += particleAcceleration * deltaTime;
+
+		//particle.Translate(vec3(0.0f, particleVelocity, 0.0f));
 
 		// 2 - same as above using the .SetPosition method
 
+		//particleVelocity += particleAcceleration * deltaTime;
+
+		//particle.SetPosition(vec3(0.0f, particleVelocity, 0.0f));
 
 		// 3 - make particle oscillate above the ground plane
 
+		//particleVelocity = particleAmplitude * sin(particleFrequency * timeSinceStart);
+
+		//particle.Translate(glm::vec3(0.0f, particleVelocity, 0.0f));
 
 		// 4 - particle animation from initial velocity and acceleration
 
+		//float oscillationX = particleAmplitude * sin(particleFrequency * timeSinceStart);
+		//float oscillationY = particleAmplitude * sin((particleFrequency * 4.0f) * timeSinceStart);
+		///float oscillationZ = particleAmplitude * sin((particleFrequency * 8.0f) * timeSinceStart);
+
+		//particle.Translate(glm::vec3(oscillationX, oscillationY, oscillationZ));
 
 		// 5 - add collision with plane
 
+		//vec3 particlePosition = particle.Position();
+
+		//if (particlePosition.y < 0)
+		//{
+		//	particle.SetPosition(vec3(particlePosition.x, 0.5f, particlePosition.z));
+		//}
 
 		// 6 - Same as above but for a collection of particles
+
+		for (auto& particle : particles) {
+
+
+			// draw particle
+			particle.Draw(view, projection);
+		}
 
 
 		/*
@@ -275,9 +324,6 @@ int main(int argc, const char** argv)
 
 		// draw ground plane
 		ground.Draw(view, projection);
-
-		// draw particle
-		particle.Draw(view, projection);
 
 		// Swap the buffers
 		glfwSwapBuffers(window);
