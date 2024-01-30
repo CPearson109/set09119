@@ -5,7 +5,7 @@
 using namespace glm;
 using namespace std;
 
-const glm::vec3 GRAVITY = glm::vec3(0, -9.81, 0);
+const glm::vec3 GRAVITY = glm::vec3(0, -10.0, 0);
 
 
 void ExplicitEuler(vec3& pos, vec3& vel, float mass, const vec3& accel, const vec3& impulse, float dt)
@@ -17,18 +17,30 @@ void ExplicitEuler(vec3& pos, vec3& vel, float mass, const vec3& accel, const ve
 
 void SymplecticEuler(vec3& pos, vec3& vel, float mass, const vec3& accel, const vec3& impulse, float dt)
 {
+	vel += impulse / mass;
+
 	vel += accel * dt;
 
 	pos += vel * dt;
+
 }
 
-vec3 CollisionImpulse(Particle& pobj, const glm::vec3& cubeCentre, float cubeHalfExtent, float coefficientOfRestitution = 0.9f)
+vec3 CollisionImpulse(Particle& pobj, const vec3& cubeCentre, float cubeHalfExtent, float coefficientOfRestitution)
 {
+	vec3 impulse(0.0f);
 
+	if (pobj.Position().y <= 0)
+	{
+		vec3 v1 = pobj.Velocity();
 
-	vec3 impulse{ 0.0f };
+		vec3 v2 = v1;
+
+		v2.y = -v1.y * coefficientOfRestitution;
+
+		impulse = pobj.Mass() * (v2 - v1);
+
+	}
 	return impulse;
-
 }
 
 vec3 BlowDryerForce(const vec3& particlePosition, float cone_y_base, float cone_y_tip, float cone_r_base, float max_force = 100)
@@ -65,7 +77,7 @@ void PhysicsEngine::Init(Camera& camera, MeshDb& meshDb, ShaderDb& shaderDb)
 	particle.SetPosition(vec3(0, 5, 0));
 	particle.SetScale(vec3(0.1f));
 	particle.SetVelocity(vec3(1.f, 0.0f, 2.f));
-	particle.SetMass(10.0f);
+	particle.SetMass(1.0f);
 
 	camera = Camera(vec3(0, 2.5, 10));
 }
@@ -76,26 +88,19 @@ void PhysicsEngine::Update(float deltaTime, float totalTime)
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	// TODO: Handle collisions and calculate impulse
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	auto impulse = CollisionImpulse(particle, glm::vec3(0.0f,5.0f,0.0f), 5.0f, 1.0f);
+	auto coefficientOfRestitution = 0.9f;
+
+	auto impulse = CollisionImpulse(particle, glm::vec3(0.0f,5.0f,0.0f), 5.0f, coefficientOfRestitution);
 	// Calculate acceleration by accumulating all forces (here we just have gravity) and dividing by the mass
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	// TODO: Implement a simple integration scheme
 	vec3 p = particle.Position(), v = particle.Velocity();
 	vec3 acceleration = vec3(GRAVITY);
 
-	if (particle.Position().y >= ground.Position().y)
-	{
+
 		SymplecticEuler(p, v, particle.Mass(), acceleration, impulse, deltaTime);
 		particle.SetPosition(p);
 		particle.SetVelocity(v);
-	}
-	else
-	{	
-		v.y = -v.y/1.2;
-		SymplecticEuler(p, v, particle.Mass(), acceleration, impulse, deltaTime);
-		particle.SetPosition(p);
-		particle.SetVelocity(v);
-	}
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 }
