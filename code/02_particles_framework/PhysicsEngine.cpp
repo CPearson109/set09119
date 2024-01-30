@@ -3,6 +3,7 @@
 #include "Camera.h"
 
 using namespace glm;
+using namespace std;
 
 const glm::vec3 GRAVITY = glm::vec3(0, -9.81, 0);
 
@@ -16,18 +17,18 @@ void ExplicitEuler(vec3& pos, vec3& vel, float mass, const vec3& accel, const ve
 
 void SymplecticEuler(vec3& pos, vec3& vel, float mass, const vec3& accel, const vec3& impulse, float dt)
 {
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	// TODO: Implement
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	vel += accel * dt;
+
+	pos += vel * dt;
 }
 
 vec3 CollisionImpulse(Particle& pobj, const glm::vec3& cubeCentre, float cubeHalfExtent, float coefficientOfRestitution = 0.9f)
 {
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	// TODO: Calculate collision impulse
+
+
 	vec3 impulse{ 0.0f };
 	return impulse;
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 }
 
 vec3 BlowDryerForce(const vec3& particlePosition, float cone_y_base, float cone_y_tip, float cone_r_base, float max_force = 100)
@@ -57,6 +58,7 @@ void PhysicsEngine::Init(Camera& camera, MeshDb& meshDb, ShaderDb& shaderDb)
 	ground.SetScale(vec3(10.0f));
 
 	// Initialise particle
+
 	particle.SetMesh(mesh);
 	particle.SetShader(defaultShader);
 	particle.SetColor(vec4(1, 0, 0, 1));
@@ -65,7 +67,6 @@ void PhysicsEngine::Init(Camera& camera, MeshDb& meshDb, ShaderDb& shaderDb)
 	particle.SetVelocity(vec3(1.f, 0.0f, 2.f));
 
 	camera = Camera(vec3(0, 2.5, 10));
-
 }
 
 // This is called every frame
@@ -79,12 +80,10 @@ void PhysicsEngine::Update(float deltaTime, float totalTime)
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	// TODO: Implement a simple integration scheme
 	vec3 p = particle.Position(), v = particle.Velocity();
-	vec3 acceleration = vec3(0.0f);
+	vec3 acceleration = vec3(GRAVITY);
 	SymplecticEuler(p,v, particle.Mass(), acceleration, impulse, deltaTime);
 	particle.SetPosition(p);
 	particle.SetVelocity(v);
-
-	
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 }
