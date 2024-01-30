@@ -65,6 +65,7 @@ void PhysicsEngine::Init(Camera& camera, MeshDb& meshDb, ShaderDb& shaderDb)
 	particle.SetPosition(vec3(0, 5, 0));
 	particle.SetScale(vec3(0.1f));
 	particle.SetVelocity(vec3(1.f, 0.0f, 2.f));
+	particle.SetMass(10.0f);
 
 	camera = Camera(vec3(0, 2.5, 10));
 }
@@ -81,9 +82,20 @@ void PhysicsEngine::Update(float deltaTime, float totalTime)
 	// TODO: Implement a simple integration scheme
 	vec3 p = particle.Position(), v = particle.Velocity();
 	vec3 acceleration = vec3(GRAVITY);
-	SymplecticEuler(p,v, particle.Mass(), acceleration, impulse, deltaTime);
-	particle.SetPosition(p);
-	particle.SetVelocity(v);
+
+	if (particle.Position().y >= ground.Position().y)
+	{
+		SymplecticEuler(p, v, particle.Mass(), acceleration, impulse, deltaTime);
+		particle.SetPosition(p);
+		particle.SetVelocity(v);
+	}
+	else
+	{	
+		v.y = -v.y/1.2;
+		SymplecticEuler(p, v, particle.Mass(), acceleration, impulse, deltaTime);
+		particle.SetPosition(p);
+		particle.SetVelocity(v);
+	}
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 }
