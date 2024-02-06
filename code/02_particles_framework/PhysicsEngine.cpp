@@ -37,7 +37,7 @@ void SymplecticEuler(vec3& pos, vec3& vel, float mass, const vec3& accel, const 
 
 }
 
-vec3 CollisionImpulse(Particle& pobj, const vec3& cubeCentre, float cubeHalfExtent, float coefficientOfRestitution, vec3 impulse, float impulseDampning)
+vec3 CollisionImpulse(Particle& pobj, const vec3& cubeCentre, float cubeHalfExtent, float coefficientOfRestitution, vec3 impulse)
 {
 
 		vec3 v1 = pobj.Velocity();
@@ -142,6 +142,8 @@ void PhysicsEngine::Init(Camera& camera, MeshDb& meshDb, ShaderDb& shaderDb)
 // This is called every frame
 void PhysicsEngine::Update(float deltaTime, float totalTime)
 {
+
+
 	// Adjust to alter energy loss on collision
 	auto coefficientOfRestitution = 0.9f;
 
