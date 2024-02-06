@@ -29,27 +29,45 @@ void SymplecticEuler(vec3& pos, vec3& vel, float mass, const vec3& accel, const 
 {
 	vel += impulse / mass;
 
-	cout << impulse.y << endl;
-
 	vel += accel * dt;
 
 	pos += vel * dt;
 
 }
 
-vec3 CollisionImpulse(Particle& pobj, const vec3& cubeCentre, float cubeHalfExtent, float coefficientOfRestitution, vec3 impulse)
+vec3 CollisionImpulse(Particle& pobj, float groundHeight, float wallXPos, float wallZPos, float coefficientOfRestitution, vec3 impulse)
 {
+	const vec3 pos = pobj.Position();
+	const vec3 v1 = pobj.Velocity();
 
-		vec3 v1 = pobj.Velocity();
+	// Ground collision
+	if (pos.y <= groundHeight) {
+		vec3 groundNormal = vec3(0.0f, 1.0f, 0.0f);
+		impulse -= (pobj.Mass() * dot(v1, groundNormal) * groundNormal) * coefficientOfRestitution;
+	}
 
-		vec3 v2 = v1;
+	// Wall collisions - X-axis walls
+	if (pos.x <= -wallXPos || pos.x >= wallXPos) {
+		vec3 wallXNormal = vec3(pos.x < 0 ? 1.0f : -1.0f, 0.0f, 0.0f);
+		impulse -= (pobj.Mass() * dot(v1, wallXNormal) * wallXNormal) * coefficientOfRestitution;
+	}
+	
+	// Wall collisions - Z-axis walls
+	if (pos.z <= -wallZPos || pos.z >= wallZPos) {
+		vec3 posz = pobj.Position();
+		posz.z = posz.z > wallZPos ? posz.z = wallZPos : posz.z = -wallZPos;
+		pobj.SetPosition(posz);
+		vec3 wallZNormal = vec3(0.0f, 0.0f, pos.z < 0 ? 1.0f : -1.0f);
+		impulse -= (pobj.Mass() * dot(v1, wallZNormal) * wallZNormal) * coefficientOfRestitution;
+	}
 
-		v2.y = -v1.y * coefficientOfRestitution;
-
-		impulse = pobj.Mass() * (v2 - v1);
-
+	pobj.SetPosition(pos);
 	return impulse;
 }
+
+
+
+
 
 vec3 AerodynamicDrag(Particle& pobj, const vec3& velocity, float dragCoefficient, float airDensity, float crossSectionArea)
 {
@@ -115,22 +133,26 @@ void PhysicsEngine::Init(Camera& camera, MeshDb& meshDb, ShaderDb& shaderDb)
 	ground.SetShader(defaultShader);
 	ground.SetScale(vec3(10.0f));
 
-	// Initialise particle
+	// Initialise particle comlour and position arrays
 	vec4 particleColour[2];
+	vec3 particlePosition[2];
 
 	// Initialize elements
 	particleColour[0] = vec4(1.0, 0.0, 0.0, 1.0); // red
 	particleColour[1] = vec4(0.0, 1.0, 0.0, 1.0); // green
+
+	particlePosition[0] = vec3(-1.0f, 5.0f, 0.0f);
+	particlePosition[1] = vec3(1.0f, 5.0f, 0.0f);
 
 	for (int i = 0; i < 2; ++i) {
 		Particle particle;
 		particle.SetMesh(mesh);
 		particle.SetShader(defaultShader);
 		particle.SetColor(vec4(particleColour[i]));
-		particle.SetPosition(vec3(0.0f, 5.0f, 0.0f));
+		particle.SetPosition(vec3(particlePosition[i]));
 		particle.SetPrevPos(vec3(0.0f, 0.0f, 0.0f));
 		particle.SetScale(vec3(0.1f));
-		particle.SetVelocity(vec3(1.f, 0.0f, 2.f));
+		particle.SetVelocity(vec3(2.0f, 0.0f, 50.0f));
 		particle.SetMass(1.0f);
 		particles.push_back(particle);
 	}
@@ -145,11 +167,11 @@ void PhysicsEngine::Update(float deltaTime, float totalTime)
 
 
 	// Adjust to alter energy loss on collision
-	auto coefficientOfRestitution = 0.9f;
+	auto coefficientOfRestitution = 1.9f;
 
 	// Adjust to alter aerodynamic drag
-	const float airDensity = 1.225f;
-	const float dragCoefficient = 0.5f;
+	const float airDensity = 1.125f;
+	const float dragCoefficient = 0.0f;
 	const float crossSectionArea = 1.0f;
 
 	// Adjust to alter wind force
@@ -192,10 +214,10 @@ void PhysicsEngine::Update(float deltaTime, float totalTime)
 			const float coefficientOfFriction = 0.5f; // Coefficient of friction for the surface
 			vec3 normalForce = vec3(0, particle.Mass() * GRAVITY.y, 0); // Normal force equals mass * gravity for a horizontal surface
 			frictionForce = CalculateFrictionForce(particle, coefficientOfFriction, normalForce);
-
-			// Calculate collision impulse
-			impulse = CollisionImpulse(particle, glm::vec3(0.0f, 5.0f, 0.0f), 5.0f, coefficientOfRestitution, impulse);
 		}
+
+		// Calculate collision impulse
+		impulse = CollisionImpulse(particle, 0.1f, 5.0f, 5.0f, coefficientOfRestitution, impulse);
 
 		// Calculate total acceleration including drag, wind, and friction
 		vec3 totalAcceleration = acceleration + dragAcceleration + windAcceleration + frictionForce / particle.Mass();
@@ -210,6 +232,8 @@ void PhysicsEngine::Update(float deltaTime, float totalTime)
 		else if (index == 1) {
 			Verlet(p, v, particle.Mass(), totalAcceleration, impulse, deltaTime);
 
+			cout << impulse.y << endl;
+
 			//cout << "Position CUBE 2: (" << p.x << ", " << p.y << ", " << p.z << ")" << endl;
 
 
@@ -219,6 +243,8 @@ void PhysicsEngine::Update(float deltaTime, float totalTime)
 		particle.SetVelocity(v);
 
 		index++;
+
+
 	}
 }
 
