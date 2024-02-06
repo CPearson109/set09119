@@ -33,6 +33,11 @@ public:
 		return m_orientation;
 	}
 
+	const glm::vec3& PrevPos() const
+	{
+		return m_prevPos;
+	}
+
 	// we must initialise it with a mesh and a shader
 	void SetMesh(const Mesh* mesh)
 	{
@@ -52,6 +57,11 @@ public:
 	void SetPosition(const glm::vec3& position)
 	{
 		m_position = position;
+	}
+
+	void SetPrevPos(const glm::vec3& prevPos)
+	{
+		m_prevPos = prevPos;
 	}
 
 	void SetScale(const glm::vec3& scale)
@@ -92,6 +102,7 @@ private:
 	glm::vec4 m_color = glm::vec4(0.5f, 0.5f, 0.5f, 1.0f);
 
 	// Transformation data
+	glm::vec3 m_prevPos = glm::vec3(0.0f);
 	glm::vec3 m_position = glm::vec3(0.0f);
 	glm::vec3 m_scale = glm::vec3(1.0f);
 	glm::mat4 m_orientation = glm::mat4(1.0f);

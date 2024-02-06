@@ -8,28 +8,36 @@ using namespace std;
 const glm::vec3 GRAVITY = glm::vec3(0, -10.0, 0);
 
 
-void ExplicitEuler(vec3& pos, vec3& vel, float mass, const vec3& accel, const vec3& impulse, float dt)
+void ExplicitEuler(vec3& pos, vec3& prevPos, vec3& vel, float mass, const vec3& accel, const vec3& impulse, float dt)
 {
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	// TODO: Implement
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 }
+
+void Verlet(vec3& pos, vec3& vel, float mass, const vec3& accel, const vec3& impulse, float dt)
+{
+	vel += impulse / mass;
+
+	pos = pos + vel * dt + 0.5f * accel * (dt * dt);
+
+	vel = vel + 0.5f * (accel + accel) * dt;
+
+}
+
 
 void SymplecticEuler(vec3& pos, vec3& vel, float mass, const vec3& accel, const vec3& impulse, float dt)
 {
 	vel += impulse / mass;
 
+	cout << impulse.y << endl;
+
 	vel += accel * dt;
 
 	pos += vel * dt;
 
-	if (pos.y < 0.1f) {
-		pos.y = 0.1f;
-	}
-
 }
 
-vec3 CollisionImpulse(Particle& pobj, const vec3& cubeCentre, float cubeHalfExtent, float coefficientOfRestitution, vec3 impulse)
+vec3 CollisionImpulse(Particle& pobj, const vec3& cubeCentre, float cubeHalfExtent, float coefficientOfRestitution, vec3 impulse, float impulseDampning)
 {
 
 		vec3 v1 = pobj.Velocity();
@@ -108,16 +116,27 @@ void PhysicsEngine::Init(Camera& camera, MeshDb& meshDb, ShaderDb& shaderDb)
 	ground.SetScale(vec3(10.0f));
 
 	// Initialise particle
+	vec4 particleColour[2];
 
-	particle.SetMesh(mesh);
-	particle.SetShader(defaultShader);
-	particle.SetColor(vec4(1, 0, 0, 1));
-	particle.SetPosition(vec3(0, 5, 0));
-	particle.SetScale(vec3(0.1f));
-	particle.SetVelocity(vec3(1.f, 0.0f, 2.f));
-	particle.SetMass(1.0f);
+	// Initialize elements
+	particleColour[0] = vec4(1.0, 0.0, 0.0, 1.0); // red
+	particleColour[1] = vec4(0.0, 1.0, 0.0, 1.0); // green
+
+	for (int i = 0; i < 2; ++i) {
+		Particle particle;
+		particle.SetMesh(mesh);
+		particle.SetShader(defaultShader);
+		particle.SetColor(vec4(particleColour[i]));
+		particle.SetPosition(vec3(0.0f, 5.0f, 0.0f));
+		particle.SetPrevPos(vec3(0.0f, 0.0f, 0.0f));
+		particle.SetScale(vec3(0.1f));
+		particle.SetVelocity(vec3(1.f, 0.0f, 2.f));
+		particle.SetMass(1.0f);
+		particles.push_back(particle);
+	}
 
 	camera = Camera(vec3(0, 2.5, 10));
+
 }
 
 // This is called every frame
@@ -134,48 +153,80 @@ void PhysicsEngine::Update(float deltaTime, float totalTime)
 	// Adjust to alter wind force
 	vec3 windForce = vec3(1.0f, 0.0f, 0.5f);
 
+	int index = 0;
+
 	// Particle properties
-	vec3 p = particle.Position();
-	vec3 v = particle.Velocity();
-	vec3 acceleration = vec3(GRAVITY);
+	for (auto& particle : particles) {
 
-	// Calculate aerodynamic drag force and its acceleration
-	vec3 dragForce = AerodynamicDrag(particle, v, dragCoefficient, airDensity, crossSectionArea);
-	vec3 dragAcceleration = dragForce / particle.Mass();
+		if (particle.Position().y < 0.1f) {
+			float posx = particle.Position().x;
+			float posz = particle.Position().z;
 
-	// Calculate wind acceleration
-	vec3 windAcceleration = CalculateWindForce(particle, windForce, dragCoefficient, crossSectionArea);
+			particle.SetPosition(vec3(posx, 0.1f, posz));
+		}
 
-	// Initialize friction force
-	vec3 frictionForce(0.0f);
-	
-	// Initialize impulse
-	vec3 impulse(0.0f);
+		vec3 prevPos = particle.PrevPos();
+		vec3 p = particle.Position();
+		vec3 v = particle.Velocity();
+		vec3 acceleration = vec3(GRAVITY);
 
-	if (particle.Position().y <= 0.1f) // Check if the particle is in contact with the ground
-	{
-		const float coefficientOfFriction = 0.5f; // Coefficient of friction for the surface
-		vec3 normalForce = vec3(0, particle.Mass() * GRAVITY.y, 0); // Normal force equals mass * gravity for a horizontal surface
-		frictionForce = CalculateFrictionForce(particle, coefficientOfFriction, normalForce);
+		// Calculate aerodynamic drag force and its acceleration
+		vec3 dragForce = AerodynamicDrag(particle, v, dragCoefficient, airDensity, crossSectionArea);
+		vec3 dragAcceleration = dragForce / particle.Mass();
 
-		// Calculate collision impulse
-		impulse = CollisionImpulse(particle, glm::vec3(0.0f, 5.0f, 0.0f), 5.0f, coefficientOfRestitution, impulse);
+		// Calculate wind acceleration
+		vec3 windAcceleration = CalculateWindForce(particle, windForce, dragCoefficient, crossSectionArea);
+
+		// Initialize friction force
+		vec3 frictionForce(0.0f);
+
+		// Initialize impulse
+		vec3 impulse(0.0f);
+
+
+		if (particle.Position().y <= 0.1f) // Check if the particle is in contact with the ground
+		{
+
+			const float coefficientOfFriction = 0.5f; // Coefficient of friction for the surface
+			vec3 normalForce = vec3(0, particle.Mass() * GRAVITY.y, 0); // Normal force equals mass * gravity for a horizontal surface
+			frictionForce = CalculateFrictionForce(particle, coefficientOfFriction, normalForce);
+
+			// Calculate collision impulse
+			impulse = CollisionImpulse(particle, glm::vec3(0.0f, 5.0f, 0.0f), 5.0f, coefficientOfRestitution, impulse);
+		}
+
+		// Calculate total acceleration including drag, wind, and friction
+		vec3 totalAcceleration = acceleration + dragAcceleration + windAcceleration + frictionForce / particle.Mass();
+
+
+		if (index == 0) {
+			// Update particle state using Symplectic Euler or any other integration method
+			SymplecticEuler(p, v, particle.Mass(), totalAcceleration, impulse, deltaTime);
+
+			//cout << "Position CUBE 1: (" << p.x << ", " << p.y << ", " << p.z << ")" << endl;
+		}
+		else if (index == 1) {
+			Verlet(p, v, particle.Mass(), totalAcceleration, impulse, deltaTime);
+
+			//cout << "Position CUBE 2: (" << p.x << ", " << p.y << ", " << p.z << ")" << endl;
+
+
+		}
+
+		particle.SetPosition(p);
+		particle.SetVelocity(v);
+
+		index++;
 	}
-
-	// Calculate total acceleration including drag, wind, and friction
-	vec3 totalAcceleration = acceleration + dragAcceleration + windAcceleration + frictionForce / particle.Mass();
-
-	// Update particle state using Symplectic Euler or any other integration method
-	SymplecticEuler(p, v, particle.Mass(), totalAcceleration, impulse, deltaTime);
-	particle.SetPosition(p);
-	particle.SetVelocity(v);
 }
 
 
 // This is called every frame, after Update
 void PhysicsEngine::Display(const mat4& viewMatrix, const mat4& projMatrix)
 {
-	particle.Draw(viewMatrix, projMatrix);
+	for (auto& particle : particles) {
+		particle.Draw(viewMatrix, projMatrix);
+	}
 	ground.Draw(viewMatrix, projMatrix);
 }
 
