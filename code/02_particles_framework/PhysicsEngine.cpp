@@ -5,14 +5,18 @@
 using namespace glm;
 using namespace std;
 
-const glm::vec3 GRAVITY = glm::vec3(0, -10.0, 0);
+const glm::vec3 GRAVITY = glm::vec3(0, -9.81, 0);
 
 
-void ExplicitEuler(vec3& pos, vec3& prevPos, vec3& vel, float mass, const vec3& accel, const vec3& impulse, float dt)
+void ExplicitEuler(vec3& pos, vec3& vel, float mass, const vec3& accel, const vec3& impulse, float dt)
 {
+	vel += impulse / mass;
 
+	pos += vel * dt;
 
+	vel += accel * dt;
 }
+
 
 void Verlet(vec3& pos, vec3& vel, float mass, const vec3& accel, const vec3& impulse, float dt)
 {
@@ -20,13 +24,14 @@ void Verlet(vec3& pos, vec3& vel, float mass, const vec3& accel, const vec3& imp
 
 	pos = pos + vel * dt + 0.5f * accel * (dt * dt);
 
-	vel = vel + 0.5f * (accel + accel) * dt;
-
+	vel += accel * dt;
 }
+
 
 
 void SymplecticEuler(vec3& pos, vec3& vel, float mass, const vec3& accel, const vec3& impulse, float dt)
 {
+
 	vel += impulse / mass;
 
 	vel += accel * dt;
@@ -37,33 +42,30 @@ void SymplecticEuler(vec3& pos, vec3& vel, float mass, const vec3& accel, const 
 
 vec3 CollisionImpulse(Particle& pobj, float groundHeight, float wallXPos, float wallZPos, float coefficientOfRestitution, vec3 impulse)
 {
-	const vec3 pos = pobj.Position();
-	const vec3 v1 = pobj.Velocity();
+	vec3 pos = pobj.Position();
+	vec3 v1 = pobj.Velocity();
 
 	// Ground collision
-	if (pos.y <= groundHeight) {
+	if (pos.y <= groundHeight && v1.y < 0) {
 		vec3 groundNormal = vec3(0.0f, 1.0f, 0.0f);
-		impulse -= (pobj.Mass() * dot(v1, groundNormal) * groundNormal) * coefficientOfRestitution;
+		impulse -= pobj.Mass() * dot(v1, groundNormal) * groundNormal * (1 + coefficientOfRestitution);
 	}
 
 	// Wall collisions - X-axis walls
-	if (pos.x <= -wallXPos || pos.x >= wallXPos) {
+	if ((pos.x <= -wallXPos && v1.x < 0) || (pos.x >= wallXPos && v1.x > 0)) {
 		vec3 wallXNormal = vec3(pos.x < 0 ? 1.0f : -1.0f, 0.0f, 0.0f);
-		impulse -= (pobj.Mass() * dot(v1, wallXNormal) * wallXNormal) * coefficientOfRestitution;
-	}
-	
-	// Wall collisions - Z-axis walls
-	if (pos.z <= -wallZPos || pos.z >= wallZPos) {
-		vec3 posz = pobj.Position();
-		posz.z = posz.z > wallZPos ? posz.z = wallZPos : posz.z = -wallZPos;
-		pobj.SetPosition(posz);
-		vec3 wallZNormal = vec3(0.0f, 0.0f, pos.z < 0 ? 1.0f : -1.0f);
-		impulse -= (pobj.Mass() * dot(v1, wallZNormal) * wallZNormal) * coefficientOfRestitution;
+		impulse -= pobj.Mass() * dot(v1, wallXNormal) * wallXNormal * (1 + coefficientOfRestitution);
 	}
 
-	pobj.SetPosition(pos);
+	// Wall collisions - Z-axis walls
+	if ((pos.z <= -wallZPos && v1.z < 0) || (pos.z >= wallZPos && v1.z > 0)) {
+		vec3 wallZNormal = vec3(0.0f, 0.0f, pos.z < 0 ? 1.0f : -1.0f);
+		impulse -= pobj.Mass() * dot(v1, wallZNormal) * wallZNormal * (1 + coefficientOfRestitution);
+	}
+
 	return impulse;
 }
+
 
 
 
@@ -134,17 +136,19 @@ void PhysicsEngine::Init(Camera& camera, MeshDb& meshDb, ShaderDb& shaderDb)
 	ground.SetScale(vec3(10.0f));
 
 	// Initialise particle comlour and position arrays
-	vec4 particleColour[2];
-	vec3 particlePosition[2];
+	vec4 particleColour[3];
+	vec3 particlePosition[3];
 
 	// Initialize elements
 	particleColour[0] = vec4(1.0, 0.0, 0.0, 1.0); // red
 	particleColour[1] = vec4(0.0, 1.0, 0.0, 1.0); // green
+	particleColour[2] = vec4(0.0, 0.0, 1.0, 1.0); // blue
 
-	particlePosition[0] = vec3(-1.0f, 5.0f, 0.0f);
-	particlePosition[1] = vec3(1.0f, 5.0f, 0.0f);
+	particlePosition[0] = vec3(-2.0f, 5.0f, 0.0f);
+	particlePosition[1] = vec3(0.0f, 5.0f, 0.0f);
+	particlePosition[2] = vec3(2.0f, 5.0f, 0.0f);
 
-	for (int i = 0; i < 2; ++i) {
+	for (int i = 0; i < 3; ++i) {
 		Particle particle;
 		particle.SetMesh(mesh);
 		particle.SetShader(defaultShader);
@@ -152,7 +156,7 @@ void PhysicsEngine::Init(Camera& camera, MeshDb& meshDb, ShaderDb& shaderDb)
 		particle.SetPosition(vec3(particlePosition[i]));
 		particle.SetPrevPos(vec3(0.0f, 0.0f, 0.0f));
 		particle.SetScale(vec3(0.1f));
-		particle.SetVelocity(vec3(2.0f, 0.0f, 50.0f));
+		particle.SetVelocity(vec3(0.0f, 0.0f, 70.0f));
 		particle.SetMass(1.0f);
 		particles.push_back(particle);
 	}
@@ -167,7 +171,7 @@ void PhysicsEngine::Update(float deltaTime, float totalTime)
 
 
 	// Adjust to alter energy loss on collision
-	auto coefficientOfRestitution = 1.9f;
+	auto coefficientOfRestitution = 0.9f;
 
 	// Adjust to alter aerodynamic drag
 	const float airDensity = 1.125f;
@@ -226,25 +230,22 @@ void PhysicsEngine::Update(float deltaTime, float totalTime)
 		if (index == 0) {
 			// Update particle state using Symplectic Euler or any other integration method
 			SymplecticEuler(p, v, particle.Mass(), totalAcceleration, impulse, deltaTime);
-
-			//cout << "Position CUBE 1: (" << p.x << ", " << p.y << ", " << p.z << ")" << endl;
 		}
 		else if (index == 1) {
+
 			Verlet(p, v, particle.Mass(), totalAcceleration, impulse, deltaTime);
 
-			cout << impulse.y << endl;
-
-			//cout << "Position CUBE 2: (" << p.x << ", " << p.y << ", " << p.z << ")" << endl;
-
-
+		}
+		else if (index == 2) {
+			ExplicitEuler(p, v, particle.Mass(), totalAcceleration,  impulse, deltaTime);
 		}
 
 		particle.SetPosition(p);
 		particle.SetVelocity(v);
 
+
 		index++;
-
-
+ 
 	}
 }
 
