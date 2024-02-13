@@ -25,5 +25,5 @@ public:
 private:
 
 	PhysicsBody ground;
-
+	std::vector<Particle> particles;
 };
