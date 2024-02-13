@@ -177,7 +177,7 @@ void Application::MainLoop() {
 	const GLfloat timeStart = (GLfloat)glfwGetTime();
 	GLfloat lastFrameTimeSinceStart = 0.0f;
 
-	const double fixedTimeStep = 1.0 / 60.0;
+	const double fixedTimeStep = 1.0 / 200.0;
 	double currentTime = glfwGetTime();
 	double accumulator = 0.0;
 

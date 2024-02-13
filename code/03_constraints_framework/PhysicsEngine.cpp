@@ -8,6 +8,9 @@ using namespace std;
 
 const glm::vec3 GRAVITY = glm::vec3(0, -9.81, 0);
 
+const int gridWidth = 3;
+const int gridHeight = 3;
+
 void SymplecticEuler(Particle& pobj, vec3 totalForce, vec3 totalImpulse, float mass, float dt)
 {
 	vec3 vel = pobj.Velocity();
@@ -48,24 +51,24 @@ vec3 CollisionImpulse(Particle& pobj, const std::vector<Particle>& particles, fl
 		impulse -= pobj.Mass() * dot(vel, wallZNormal) * wallZNormal * (1 + coefficientOfRestitution);
 	}
 
-	// Particle collisions
-	for (const Particle& other : particles) {
-		if (&pobj != &other) {
-			vec3 otherPos = other.Position();
-			vec3 deltaPos = pos - otherPos;
-			float distance = length(deltaPos);
-			float particleRadius = 0.1f;
-
-			// Check for collision
-			if (distance < 2 * particleRadius) {
-				vec3 collisionNormal = normalize(deltaPos);
-				vec3 relativeVelocity = vel - other.Velocity();
-
-				float j = -(1 + coefficientOfRestitution) * dot(relativeVelocity, collisionNormal) / (1 / pobj.Mass() + 1 / other.Mass());
-				impulse += j * collisionNormal;
-			}
-		}
-	}
+	////Particle collisions
+	//for (const Particle& other : particles) {
+	//	if (&pobj != &other) {
+	//		vec3 otherPos = other.Position();
+	//		vec3 deltaPos = pos - otherPos;
+	//		float distance = length(deltaPos);
+	//		float particleRadius = 0.1f;
+	//
+	//		// Check for collision
+	//		if (distance < 2 * particleRadius) {
+	//			vec3 collisionNormal = normalize(deltaPos);
+	//			vec3 relativeVelocity = vel - other.Velocity();
+	//
+	//			float j = -(1 + coefficientOfRestitution) * dot(relativeVelocity, collisionNormal) / (1 / pobj.Mass() + 1 / other.Mass());
+	//			impulse += j * collisionNormal;
+	//		}
+	//	}
+	//}
 
 	return impulse;
 }
@@ -87,17 +90,18 @@ void PhysicsEngine::Init(Camera& camera, MeshDb& meshDb, ShaderDb& shaderDb) {
 	ground.SetShader(defaultShader);
 	ground.SetScale(vec3(10.0f));
 
-
-	for (int i = 0; i < 5; ++i) {
-		Particle particle;
-		particle.SetMesh(mesh);
-		particle.SetShader(defaultShader);
-		particle.SetColor(vec4(1.0f, 0.0f, 0.0f, 1.0f));
-		particle.SetPosition(vec3(0.0f, 10.0f - i, 0.0f));
-		particle.SetScale(vec3(0.1f));
-		particle.SetVelocity(vec3(0.0f, 0.0f, 0.0f));
-		particle.SetMass(1.0f);
-		particles.push_back(particle);
+	for (int y = 0; y < gridHeight; y++) {
+		for (int x = 0; x < gridWidth; x++) {
+			Particle particle;
+			particle.SetMesh(mesh);
+			particle.SetShader(defaultShader);
+			particle.SetColor(vec4(1.0f, 0.0f, 0.0f, 1.0f));
+			particle.SetPosition(vec3(0.0f + x + y, 10.0f - y, 0.0f));
+			particle.SetScale(vec3(0.1f));
+			particle.SetVelocity(vec3(0.0f, 0.0f, 0.0f));
+			particle.SetMass(1.0f);
+			particles.push_back(particle);
+		}
 	}
 
 	camera = Camera(vec3(0, 2.5, 10));
@@ -111,25 +115,19 @@ void PhysicsEngine::Task1Init()
 
 void PhysicsEngine::Task1Update(float deltaTime, float totalTime) {
 
-	float coefficientOfRestitution = 0.9f;
+	float coefficientOfRestitution = 0.7f;
 
 	int index = 0;
 
-	float dampingCoefficient = 1.0f;
+	float dampingCoefficient = 0.1f;
 	float springConstant = 10.0f;
 	float restLength = 1.0f;
 
 	for (Particle& particle : particles) {
 
-		if (index != 0) {
-
-			Particle& p1 = particles[index];
-
-			Particle& p2 = particles[index - 1];
+		if (index > gridWidth - 1){
 
 			vec3 impulse(0.0f);
-
-			particle.ClearForcesImpulses();
 
 			impulse = CollisionImpulse(particle, particles, 0.1f, 5.0f, 5.0f, coefficientOfRestitution, impulse);
 
@@ -137,16 +135,81 @@ void PhysicsEngine::Task1Update(float deltaTime, float totalTime) {
 
 			Force::Gravity(particle);
 
-			Force::Hooke(p1, p2, restLength, springConstant, dampingCoefficient);
+			for (int y = 0; y < gridHeight; y++) {
+				for (int x = 0; x < gridWidth; x++) {
 
-			vec3 totalForce = particle.AccumulatedForce();
+					int index = y * gridWidth + x;
+					Particle& particle = particles[index];
 
-			vec3 totalImpulse = particle.AccumulatedImpulse();
+					// above
+					if (y > 0) {
+						Force::Hooke(particle, particles[(y - 1) * gridWidth + x], restLength, springConstant, dampingCoefficient);
+						//cout << index << " - " << (y - 1) * gridWidth + x << endl;
+					}
 
-			float mass = particle.Mass();
+					// below
+					if (y < gridHeight - 1) {
+						Force::Hooke(particle, particles[(y + 1) * gridWidth + x], restLength, springConstant, dampingCoefficient);
+						//cout << index << " - " << (y + 1) * gridWidth + x << endl;
+					}
 
+					// left
+					if (x > 0) {
+						Force::Hooke(particle, particles[y * gridWidth + (x - 1)], restLength, springConstant, dampingCoefficient);
+						//cout << index << " - " << y * gridWidth + (x - 1) << endl;
+					}
+
+					// right
+					if (x < gridWidth - 1) {
+						Force::Hooke(particle, particles[y * gridWidth + (x + 1)], restLength, springConstant, dampingCoefficient);
+						//cout << index << " - " << y * gridWidth + (x + 1) << endl;
+					}
+
+					// top left
+					if (x > 0 && y > 0) {
+						Force::Hooke(particle, particles[(y - 1) * gridWidth + (x - 1)], restLength, springConstant, dampingCoefficient);
+						cout << index << " - " << y - 1 * gridWidth + (x + 1) << endl;
+					}
+				
+
+					//top right
+					if (x > gridWidth - 1 && y > 0) {
+
+					}
+
+					//bottom left
+					if (y < gridHeight - 1 && x > 0) {
+
+					}
+
+					//bottom right
+					if (y < gridHeight - 1 && y > 0) {
+
+					}
+				}
+			}
+
+
+		}
+
+		index++;
+	}
+
+	index = 0;
+
+	for (Particle& particle : particles) {
+
+		float mass = particle.Mass();
+
+		vec3 totalForce = particle.AccumulatedForce();
+
+		vec3 totalImpulse = particle.AccumulatedImpulse();
+
+		if (index > gridWidth - 1) {
 			SymplecticEuler(particle, totalForce, totalImpulse, mass, deltaTime);
 		}
+
+		particle.ClearForcesImpulses();
 
 		index++;
 	}
