@@ -22,18 +22,16 @@ void Force::Hooke(Particle& p1, Particle& p2, float restLength, float springCons
     vec3 p1_to_p2 = p2.Position() - p1.Position(); // Vector from p1 to p2
     float currentLength = length(p1_to_p2); // Current length of the spring
 
-    // Normalize the vector between p1 and p2 to use it for direction
+    // Normalize the vector between the partcles
     vec3 direction = normalize(p1_to_p2);
 
     // Calculate the spring force magnitude
     float springForceMagnitude = -springConstant * (currentLength - restLength);
 
-    // Calculate the damping force magnitude
-    // It's proportional to the relative velocity along the direction of the spring
     vec3 relativeVelocity = p2.Velocity() - p1.Velocity();
     float dampingForceMagnitude = -dampingCoefficient * dot(relativeVelocity, direction);
 
-    // Total force from spring and damping
+
     vec3 totalForce = (springForceMagnitude + dampingForceMagnitude) * direction;
 
     // Apply the force to both particles in opposite directions

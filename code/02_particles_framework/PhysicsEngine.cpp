@@ -63,6 +63,7 @@ vec3 CollisionImpulse(Particle& pobj, float groundHeight, float wallXPos, float 
 		impulse -= pobj.Mass() * dot(v1, wallZNormal) * wallZNormal * (1 + coefficientOfRestitution);
 	}
 
+
 	return impulse;
 }
 

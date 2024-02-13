@@ -25,7 +25,7 @@ void SymplecticEuler(Particle& pobj, vec3 totalForce, vec3 totalImpulse, float m
 
 }
 
-vec3 CollisionImpulse(Particle& pobj, float groundHeight, float wallXPos, float wallZPos, float coefficientOfRestitution, vec3 impulse)
+vec3 CollisionImpulse(Particle& pobj, const std::vector<Particle>& particles, float groundHeight, float wallXPos, float wallZPos, float coefficientOfRestitution, vec3 impulse)
 {
 	vec3 pos = pobj.Position();
 	vec3 vel = pobj.Velocity();
@@ -46,6 +46,25 @@ vec3 CollisionImpulse(Particle& pobj, float groundHeight, float wallXPos, float 
 	if ((pos.z <= -wallZPos && vel.z < 0) || (pos.z >= wallZPos && vel.z > 0)) {
 		vec3 wallZNormal = vec3(0.0f, 0.0f, pos.z < 0 ? 1.0f : -1.0f);
 		impulse -= pobj.Mass() * dot(vel, wallZNormal) * wallZNormal * (1 + coefficientOfRestitution);
+	}
+
+	// Particle collisions
+	for (const Particle& other : particles) {
+		if (&pobj != &other) {
+			vec3 otherPos = other.Position();
+			vec3 deltaPos = pos - otherPos;
+			float distance = length(deltaPos);
+			float particleRadius = 0.1f;
+
+			// Check for collision
+			if (distance < 2 * particleRadius) {
+				vec3 collisionNormal = normalize(deltaPos);
+				vec3 relativeVelocity = vel - other.Velocity();
+
+				float j = -(1 + coefficientOfRestitution) * dot(relativeVelocity, collisionNormal) / (1 / pobj.Mass() + 1 / other.Mass());
+				impulse += j * collisionNormal;
+			}
+		}
 	}
 
 	return impulse;
@@ -69,12 +88,12 @@ void PhysicsEngine::Init(Camera& camera, MeshDb& meshDb, ShaderDb& shaderDb) {
 	ground.SetScale(vec3(10.0f));
 
 
-	for (int i = 0; i < 2; ++i) {
+	for (int i = 0; i < 5; ++i) {
 		Particle particle;
 		particle.SetMesh(mesh);
 		particle.SetShader(defaultShader);
 		particle.SetColor(vec4(1.0f, 0.0f, 0.0f, 1.0f));
-		particle.SetPosition(vec3(0.0f + i, 5.0f, 0.0f));
+		particle.SetPosition(vec3(0.0f, 10.0f - i, 0.0f));
 		particle.SetScale(vec3(0.1f));
 		particle.SetVelocity(vec3(0.0f, 0.0f, 0.0f));
 		particle.SetMass(1.0f);
@@ -96,28 +115,29 @@ void PhysicsEngine::Task1Update(float deltaTime, float totalTime) {
 
 	int index = 0;
 
-	float dampingCoefficient = 0.0f;
+	float dampingCoefficient = 1.0f;
 	float springConstant = 10.0f;
 	float restLength = 1.0f;
 
-	Particle& movableParticle = particles[0];
-	Particle& stationaryParticle = particles[1];
-
 	for (Particle& particle : particles) {
 
-		if (index == 0) {
+		if (index != 0) {
+
+			Particle& p1 = particles[index];
+
+			Particle& p2 = particles[index - 1];
 
 			vec3 impulse(0.0f);
 
 			particle.ClearForcesImpulses();
 
-			impulse = CollisionImpulse(particle, 0.1f, 5.0f, 5.0f, coefficientOfRestitution, impulse);
+			impulse = CollisionImpulse(particle, particles, 0.1f, 5.0f, 5.0f, coefficientOfRestitution, impulse);
 
 			particle.ApplyImpulse(impulse);
 
 			Force::Gravity(particle);
 
-			Force::Hooke(stationaryParticle, movableParticle, restLength, springConstant, dampingCoefficient);
+			Force::Hooke(p1, p2, restLength, springConstant, dampingCoefficient);
 
 			vec3 totalForce = particle.AccumulatedForce();
 
