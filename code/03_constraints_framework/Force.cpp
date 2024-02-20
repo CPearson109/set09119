@@ -3,6 +3,7 @@
 #include "PhysicsObject.h"
 
 using namespace glm;
+using namespace std;
 
 void Force::Gravity(Particle& p)
 {
@@ -37,4 +38,15 @@ void Force::Hooke(Particle& p1, Particle& p2, float restLength, float springCons
     // Apply the force to both particles in opposite directions
     p1.ApplyForce(-totalForce);
     p2.ApplyForce(totalForce);
+}
+
+void Force::Wind(Particle& p, float dt) {
+
+    float randForce;
+
+    randForce = (float) (rand()) / (float)(RAND_MAX);
+
+    auto windForce = vec3(p.Position().x, p.Position().y, (randForce * dt) / 10);
+
+    p.ApplyForce(windForce);
 }
