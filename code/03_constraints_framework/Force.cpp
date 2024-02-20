@@ -40,13 +40,22 @@ void Force::Hooke(Particle& p1, Particle& p2, float restLength, float springCons
     p2.ApplyForce(totalForce);
 }
 
+float Totaltime;
+
 void Force::Wind(Particle& p, float dt) {
 
     float randForce;
+    vec3 windForce = vec3(0, 0, 0);
 
-    randForce = (float) (rand()) / (float)(RAND_MAX);
+    randForce = 1.f;
 
-    auto windForce = vec3(p.Position().x, p.Position().y, (randForce * dt) / 10);
+    Totaltime += dt;
+
+    if (Totaltime > 2)
+    {
+    windForce = vec3(p.Position().x, p.Position().y, randForce);
+    Totaltime = 0;
+    }
 
     p.ApplyForce(windForce);
 }

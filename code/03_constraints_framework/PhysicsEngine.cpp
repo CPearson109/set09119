@@ -138,12 +138,9 @@ void PhysicsEngine::Task1Update(float deltaTime, float totalTime) {
 
 			impulse = CollisionImpulse(particle, particles, 0.1f, 5.0f, 5.0f, coefficientOfRestitution, impulse);
 
-
 			particle.ApplyImpulse(impulse);
 
 			Force::Wind(particle, deltaTime);
-
-			cout << particle.Velocity().z << endl;
 
 			Force::Gravity(particle);
 
@@ -182,10 +179,11 @@ void PhysicsEngine::Task1Update(float deltaTime, float totalTime) {
 
 		}
 
-		if (index == 45 && hit == false)
-		{
-			particle.SetVelocity(vec3(particle.Velocity().x, particle.Velocity().y, -20.f));
-		}
+		//if (index == 45 && hit == false)
+		//{
+		//	particle.SetVelocity(vec3(particle.Velocity().x, particle.Velocity().y, -20.f));
+		//	hit = true;
+		//}
 
 		index++;
 	}
