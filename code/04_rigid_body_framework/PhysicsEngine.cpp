@@ -93,20 +93,35 @@ void UpdateRigidBodyRotation(RigidBody& rb, float dt) {
 	rb.SetOrientation(mat4(R));
 }
 
-void CheckGroundCollisions(RigidBody& rigidBody, float groundHeight) {
+void CheckGroundCollisions(RigidBody& rigidBody, float groundHeight, vector<vec3>& contactPoints) {
 	const auto& positions = rigidBody.GetMesh()->Data().positions;
 	mat4 modelMatrix = rigidBody.ModelMatrix();
-	vector<vec3> contactPoints;
 
-	for (const auto& localPos : positions) {
-		vec4 worldPos = modelMatrix * vec4(pos, 1.0f); // Convert to world space
-		if (worldPos.y <= groundHeight) { // Check collision with ground
-			contactPoints.push_back(vec3(worldPos)); // Store the contact point
+	// Iterate through each vertex position
+	for (const auto& localPos : positions.data) {
+		vec4 worldPos = modelMatrix * vec4(localPos, 1.0f);
+		if (worldPos.y <= groundHeight) {
+			contactPoints.push_back(vec3(worldPos));
 		}
 	}
-
-	// Handle collision response here with the contactPoints...
 }
+
+void ApplyAngularVelocityImpulse(RigidBody& rigidBody, const vector<vec3>& contactPoints, const vec3& impulse) {
+	if (contactPoints.empty()) return;
+
+	vec3 centerOfMass = rigidBody.Position();
+
+	for (const vec3& point : contactPoints) {
+		vec3 pointRelativeToCOM = point - centerOfMass;
+
+		vec3 angularImpulse = cross(pointRelativeToCOM, impulse);
+
+		vec3 newAngularVelocity = rigidBody.AngularVelocity() + angularImpulse;
+		rigidBody.SetAngularVelocity(newAngularVelocity);
+	}
+}
+
+
 
 // This is called once
 void PhysicsEngine::Init(Camera& camera, MeshDb& meshDb, ShaderDb& shaderDb)
@@ -134,7 +149,7 @@ void PhysicsEngine::Init(Camera& camera, MeshDb& meshDb, ShaderDb& shaderDb)
 		particle.SetPosition(vec3(0.0f, 5.0f, 0.0f));
 		particle.SetScale(vec3(1.0f, 1.0f, 1.0f));
 		particle.SetVelocity(vec3(0.0f, 0.0f, 0.0f));
-		particle.SetAngularVelocity(vec3(5.0f, 0.0f, 0.0f));
+		particle.SetAngularVelocity(vec3(1.0f, 0.0f, 0.0f));
 		particle.SetMass(1.0f);
 		particles.push_back(particle);
 	}
@@ -173,9 +188,21 @@ void PhysicsEngine::Update(float deltaTime, float totalTime)
 		// Initialize impulse
 		vec3 impulse(0.0f);
 
-		for (auto& particle : particles) {
-			CheckGroundCollisions(particle, 0.0f);
-			// Continue with physics update...
+		for (auto& rigidBody : particles) {
+			vector<vec3> contactPoints;
+			CheckGroundCollisions(rigidBody, particle.Scale().y, contactPoints);
+
+
+			float minContactY = std::numeric_limits<float>::max();
+			for (const auto& point : contactPoints) {
+				if (point.y < minContactY) minContactY = point.y;
+			}
+
+
+			for (const auto& point : contactPoints) {
+				vec3 collisionImpulse = -GRAVITY * particle.Mass(); // This is a simplification
+				ApplyAngularVelocityImpulse(particle, contactPoints, collisionImpulse);
+			}
 		}
 
 		//if (particle.Position().y <= particle.Scale().y) // Check if the particle is in contact with the ground
