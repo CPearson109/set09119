@@ -1,15 +1,15 @@
 /// @ref gtx_orthonormalize
-/// @file glm/gtx/orthonormalize.hpp
-///
-/// @see core (dependence)
-/// @see gtx_extented_min_max (dependence)
-///
-/// @defgroup gtx_orthonormalize GLM_GTX_orthonormalize
-/// @ingroup gtx
-///
-/// Include <glm/gtx/orthonormalize.hpp> to use the features of this extension.
-///
-/// Orthonormalize matrices.
+//@file glm/gtx/orthonormalize.hpp
+//
+//@see core (dependence)
+//@see gtx_extented_min_max (dependence)
+//
+//@defgroup gtx_orthonormalize GLM_GTX_orthonormalize
+//@ingroup gtx
+//
+//Include <glm/gtx/orthonormalize.hpp> to use the features of this extension.
+//
+//Orthonormalize matrices.
 
 #pragma once
 

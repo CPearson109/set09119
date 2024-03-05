@@ -1,11 +1,13 @@
 #include "PhysicsEngine.h"
 #include "Application.h"
 #include "Camera.h"
+#include "glm/gtx/orthonormalize.hpp"
+#include "glm/gtx/matrix_cross_product.hpp"
 
 using namespace glm;
 using namespace std;
 
-const glm::vec3 GRAVITY = glm::vec3(0, -9.81, 0);
+const glm::vec3 GRAVITY = glm::vec3(0, -9.0, 0);
 
 void SymplecticEuler(vec3& pos, vec3& vel, float mass, const vec3& accel, const vec3& impulse, float dt)
 {
@@ -91,6 +93,21 @@ void UpdateRigidBodyRotation(RigidBody& rb, float dt) {
 	rb.SetOrientation(mat4(R));
 }
 
+void CheckGroundCollisions(RigidBody& rigidBody, float groundHeight) {
+	const auto& positions = rigidBody.GetMesh()->Data().positions;
+	mat4 modelMatrix = rigidBody.ModelMatrix();
+	vector<vec3> contactPoints;
+
+	for (const auto& localPos : positions) {
+		vec4 worldPos = modelMatrix * vec4(pos, 1.0f); // Convert to world space
+		if (worldPos.y <= groundHeight) { // Check collision with ground
+			contactPoints.push_back(vec3(worldPos)); // Store the contact point
+		}
+	}
+
+	// Handle collision response here with the contactPoints...
+}
+
 // This is called once
 void PhysicsEngine::Init(Camera& camera, MeshDb& meshDb, ShaderDb& shaderDb)
 {
@@ -116,8 +133,8 @@ void PhysicsEngine::Init(Camera& camera, MeshDb& meshDb, ShaderDb& shaderDb)
 		particle.SetColor(vec4(1.0f, 0.0f, 0.0f, 1.0f));
 		particle.SetPosition(vec3(0.0f, 5.0f, 0.0f));
 		particle.SetScale(vec3(1.0f, 1.0f, 1.0f));
-		particle.SetVelocity(vec3(0.0f, 1.0f, 0.0f));
-		particle.SetAngularVelocity(vec3(10.0f, 0.0f, 0.0f));
+		particle.SetVelocity(vec3(0.0f, 0.0f, 0.0f));
+		particle.SetAngularVelocity(vec3(5.0f, 0.0f, 0.0f));
 		particle.SetMass(1.0f);
 		particles.push_back(particle);
 	}
@@ -129,7 +146,6 @@ void PhysicsEngine::Init(Camera& camera, MeshDb& meshDb, ShaderDb& shaderDb)
 // This is called every frame
 void PhysicsEngine::Update(float deltaTime, float totalTime)
 {
-
 
 	// Adjust to alter energy loss on collision
 	auto coefficientOfRestitution = 0.9f;
@@ -157,20 +173,25 @@ void PhysicsEngine::Update(float deltaTime, float totalTime)
 		// Initialize impulse
 		vec3 impulse(0.0f);
 
-
-		if (particle.Position().y <= 0.1f) // Check if the particle is in contact with the ground
-		{
-
-			const float coefficientOfFriction = 0.5f; // Coefficient of friction for the surface
-			vec3 normalForce = vec3(0, particle.Mass() * GRAVITY.y, 0); // Normal force equals mass * gravity for a horizontal surface
-			frictionForce = CalculateFrictionForce(particle, coefficientOfFriction, normalForce);
+		for (auto& particle : particles) {
+			CheckGroundCollisions(particle, 0.0f);
+			// Continue with physics update...
 		}
+
+		//if (particle.Position().y <= particle.Scale().y) // Check if the particle is in contact with the ground
+		//{
+		//	const float coefficientOfFriction = 0.5f; // Coefficient of friction for the surface
+		//	vec3 normalForce = vec3(0, particle.Mass() * GRAVITY.y, 0); // Normal force equals mass * gravity for a horizontal surface
+		//	frictionForce = CalculateFrictionForce(particle, coefficientOfFriction, normalForce);
+		//}
 
 		// Calculate collision impulse
 		impulse = CollisionImpulse(particle, particles, particle.Scale().y, 5.0f, 5.0f, coefficientOfRestitution, impulse);
 
 		// Calculate total acceleration including drag, wind, and friction
 		vec3 totalAcceleration = acceleration + frictionForce / particle.Mass();
+
+		UpdateRigidBodyRotation(particle, deltaTime);
 
 		SymplecticEuler(p, v, particle.Mass(), totalAcceleration, impulse, deltaTime);
 
