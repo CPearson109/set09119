@@ -173,6 +173,7 @@ void PhysicsEngine::Task1Update(float deltaTime, float totalTime) {
 						float restLength = 1.41421;
 						Force::Hooke(particle, particles[(y + 1) * gridWidth + (x + 1)], restLength, springConstant, dampingCoefficient);
 					}
+					}
 				}
 			}
 

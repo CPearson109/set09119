@@ -54,7 +54,7 @@ void Application::DoMovement(GLfloat deltaTime)
 }
 
 // Is called whenever a key is pressed/released via GLFW
-static void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mode)
+static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mode)
 {
 	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
 	{
@@ -79,7 +79,7 @@ static void keyCallback(GLFWwindow *window, int key, int scancode, int action, i
 	}
 }
 
-static void mouseCallback(GLFWwindow *window, double xPos, double yPos)
+static void mouseCallback(GLFWwindow* window, double xPos, double yPos)
 {
 	if (firstMouse)
 	{
@@ -98,7 +98,7 @@ static void mouseCallback(GLFWwindow *window, double xPos, double yPos)
 }
 
 
-static void scrollCallback(GLFWwindow *window, double xOffset, double yOffset)
+static void scrollCallback(GLFWwindow* window, double xOffset, double yOffset)
 {
 	camera.ProcessMouseScroll((GLfloat)yOffset);
 }
@@ -159,10 +159,10 @@ int Application::InitWindow() {
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glDisable(GL_CULL_FACE);
+
 	return 1;
 }
 
-// clear buffer
 void Application::MainLoop() {
 
 	// Initialise graphics
@@ -174,21 +174,34 @@ void Application::MainLoop() {
 	m_physEngine.Init(camera, meshDb, shaderDb);
 
 	// Prepare some time bookkeeping
-	const GLfloat timeStart = (GLfloat)glfwGetTime(); 
+	const GLfloat timeStart = (GLfloat)glfwGetTime();
 	GLfloat lastFrameTimeSinceStart = 0.0f;
+
+	const double fixedTimeStep = 1.0 / 60.0;
+	double currentTime = glfwGetTime();
+	double accumulator = 0.0;
 
 	while (!glfwWindowShouldClose(m_window))
 	{
-		// time elapsed since application start
+		double newTime = glfwGetTime();
+		double frameTime = newTime - currentTime;
+		currentTime = newTime;
+
+		if (frameTime > 0.25)
+			frameTime = 0.25;
+
+		accumulator += frameTime;
+
+		// Time elapsed since application start
 		GLfloat timeSinceStart = (GLfloat)glfwGetTime() - timeStart;
 
-		// calculate the delta time since last frame
-		auto deltaTime = timeSinceStart - lastFrameTimeSinceStart;
+		// Calculate the delta time since last frame
+		GLfloat deltaTime = timeSinceStart - lastFrameTimeSinceStart;
 
-		// save the current time since start to the previous time since start, so that we can calculate the elapsed time between the different frames
+		// Save the current time since start for the next frame
 		lastFrameTimeSinceStart = timeSinceStart;
 
-		// poll input events
+		// Poll input events
 		glfwPollEvents();
 
 		// Handle key state changes in the physics engine and clear them
@@ -199,7 +212,7 @@ void Application::MainLoop() {
 		// Update camera
 		DoMovement(deltaTime);
 
-		// Clear the colorbuffer
+		// Clear the color buffer
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -207,8 +220,14 @@ void Application::MainLoop() {
 		auto projection = glm::perspective(camera.GetZoom(), (GLfloat)m_width / (GLfloat)m_height, 0.1f, 1000.0f);
 		auto view = camera.GetViewMatrix();
 
-		// Update the physics
-		m_physEngine.Update(deltaTime, timeSinceStart);
+		// Fixed timestep physics update
+		while (accumulator >= fixedTimeStep)
+		{
+			// Update  physics engine with fixedTimeStep
+			m_physEngine.Update(fixedTimeStep, currentTime);
+
+			accumulator -= fixedTimeStep;
+		}
 
 		// Draw all the objects in the physics engine
 		m_physEngine.Display(view, projection);
@@ -216,10 +235,9 @@ void Application::MainLoop() {
 		// Swap the buffers
 		glfwSwapBuffers(m_window);
 	}
-	
+
 	glfwTerminate();
 }
-
 
 int main(int argc, const char** argv)
 {

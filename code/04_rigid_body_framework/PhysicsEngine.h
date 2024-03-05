@@ -26,7 +26,7 @@ public:
 private:
 
 	PhysicsBody ground;
-
+	std::vector<RigidBody> particles;
 
 	RigidBody rbody1;
 };
