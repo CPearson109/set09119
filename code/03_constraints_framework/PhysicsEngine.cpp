@@ -114,12 +114,6 @@ void PhysicsEngine::Init(Camera& camera, MeshDb& meshDb, ShaderDb& shaderDb) {
 	camera = Camera(vec3(0, 2.5, 10));
 }
 
-
-void PhysicsEngine::Task1Init()
-{
-
-}
-
 void PhysicsEngine::Task1Update(float deltaTime, float totalTime) {
 
 	float coefficientOfRestitution = 0.7f;
@@ -187,9 +181,8 @@ void PhysicsEngine::Task1Update(float deltaTime, float totalTime) {
 		//}
 
 		index++;
-	}
 
-	index = 0;
+	 index = 0;
 
 	for (Particle& particle : particles) {
 
