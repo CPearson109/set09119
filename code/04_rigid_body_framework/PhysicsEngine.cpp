@@ -37,35 +37,47 @@ void CheckForCollision(RigidBody& rigidBody, float groundHeight, std::vector<vec
 }
 
 void ResolveCollision(RigidBody& rigidBody, const std::vector<vec3>& contactPoints, float groundHeight) {
-	float coefficientOfRestitution = 0.2f;
-	float dampingFactor = 0.9f;
 
 	if (contactPoints.empty()) return;
 
-	vec3 avgContactPoint(0.0f);
 	for (const auto& point : contactPoints) {
-		avgContactPoint += point;
+		// Calculate penetration depth for each contact point
+		float penetrationDepth = groundHeight - point.y;
+
+		// Apply correction for each contact point
+		vec3 correction = vec3(0.0f, penetrationDepth, 0.0f);
+		rigidBody.SetPosition(rigidBody.Position() + correction);
+
+
 	}
-	avgContactPoint /= contactPoints.size();
 
-	float penetrationDepth = groundHeight - avgContactPoint.y;
-	vec3 correction = vec3(0.0f, penetrationDepth + 0.01, 0.0f); // Add a small offset to ensure the object is above the ground
-	rigidBody.SetPosition(rigidBody.Position() + correction);
+}
 
-	vec3 velocity = rigidBody.Velocity();
-	velocity.y = -velocity.y * coefficientOfRestitution; // Reflect the y component of velocity
+void Impulse(RigidBody& rigidBody, const std::vector<vec3>& contactPoints) {
 
-	// Apply damping to horizontal components to simulate friction
-	velocity.x *= dampingFactor;
-	velocity.z *= dampingFactor;
+	float coefficientOfRestitution = 0.8f;
 
-	rigidBody.SetVelocity(velocity);
+	for (const auto& point : contactPoints) {
+		vec3 r = point - rigidBody.Position(); // Vector from COM to contact point
+		vec3 n = vec3(0, 1, 0); // Collision normal
+		vec3 V_rel = rigidBody.Velocity() + cross(rigidBody.AngularVelocity(), r); // Relative velocity at contact point
 
-	// Adjust angular velocity based on the collision
-	if (contactPoints.size() > 1) {
-		vec3 angularVelocity = rigidBody.AngularVelocity();
+		float numerator = -(1 + coefficientOfRestitution) * dot(V_rel, n);
+		float term1 = 1 / rigidBody.Mass();
+		float term2 = dot(cross(r, n), cross(r, n) * rigidBody.InverseInertia());
+		float J = numerator / (term1 + term2); // Impulse magnitude
 
-		rigidBody.SetAngularVelocity(angularVelocity);
+		vec3 linearImpulse = J * n;
+		vec3 angularImpulse = cross(r, linearImpulse);
+
+		// Apply linear impulse
+		vec3 newVelocity = rigidBody.Velocity() + (linearImpulse / rigidBody.Mass());
+		rigidBody.SetVelocity(newVelocity);
+
+		// Apply angular impulse
+		vec3 newAngularVelocity = rigidBody.AngularVelocity() + (rigidBody.InverseInertia() * angularImpulse);
+		rigidBody.SetAngularVelocity(newAngularVelocity);
+
 	}
 }
 
@@ -87,6 +99,29 @@ void UpdateRigidBodyRotation(RigidBody& rb, float dt) {
 	// Pass the matrix to SetOrientation
 	rb.SetOrientation(rotationMatrix);
 }
+
+vec3 ApplyImpulseAtPoint(RigidBody& rb, const vec3& linImpulse, const vec3& angImpulse, const vec3& point) {
+
+	// Update linear velocity
+	vec3 deltaV = linImpulse;
+	vec3 vel = rb.Velocity();
+	vel += deltaV;
+
+	vec3 r = point - rb.Position();
+
+	// Update angular velocity
+	glm::mat3 invInertiaWorld = rb.InverseInertia();
+	vec3 deltaOmega = invInertiaWorld * glm::cross(r, angImpulse);
+	vec3 angVel = rb.AngularVelocity();
+	angVel += deltaOmega;
+
+	rb.SetAngularVelocity(angVel);
+
+
+	return vel;
+
+}
+
 
 
 // This is called once
@@ -112,10 +147,10 @@ void PhysicsEngine::Init(Camera& camera, MeshDb& meshDb, ShaderDb& shaderDb)
 		particle.SetMesh(mesh);
 		particle.SetShader(defaultShader);
 		particle.SetColor(vec4(1.0f, 0.0f, 0.0f, 1.0f));
-		particle.SetPosition(vec3(0.0f, 5.0f, 0.0f));
-		particle.SetScale(vec3(1.0f, 1.0f, 1.0f));
+		particle.SetPosition(vec3(0.0f, 10.0f, 0.0f));
+		particle.SetScale(vec3(2.0f, 6.0f, 2.0f));
 		particle.SetVelocity(vec3(0.0f, 0.0f, 0.0f));
-		particle.SetAngularVelocity(vec3(1.0f, 0.0f, 0.0f));
+		particle.SetAngularVelocity(vec3(1.0f, 2.0f, 2.0f));
 		particle.SetMass(1.0f);
 		particles.push_back(particle);
 	}
@@ -124,13 +159,26 @@ void PhysicsEngine::Init(Camera& camera, MeshDb& meshDb, ShaderDb& shaderDb)
 
 }
 
+int testNumber = 0;
+bool applyImpulse = false;
+bool impulseApplied = false;
+float accumulatedTime = 0.0f;
+vec3 linImpulse = vec3(0.0f, 0.0f, 0.0f);
+vec3 angImpulse = vec3(0.0f, 0.0f, 0.0f);
+vec3 impulsePoint = vec3(0.0f, 0.0f, 0.0f);
+
 // This is called every frame
 void PhysicsEngine::Update(float deltaTime, float totalTime)
 {
+	accumulatedTime += deltaTime;
+
+	if (accumulatedTime >= 2.0f && impulseApplied == false) {
+		applyImpulse = true;
+		impulseApplied = true;
+	}
 
 	int groundHeight = 0;
-	auto coefficientOfRestitution = 0.9f; // This can be adjusted based on the materials involved
-	vector<vec3> contactPoints; // This will store the contact points for each collision
+	vector<vec3> contactPoints;
 
 	for (auto& particle : particles) {
 		vec3 p = particle.Position();
@@ -138,38 +186,60 @@ void PhysicsEngine::Update(float deltaTime, float totalTime)
 		vec3 acceleration = GRAVITY;
 		vec3 impulse(0.0f);
 
-		// First, handle the collision detection
+		if (applyImpulse == true) {
+			if (testNumber == 1 && accumulatedTime < 2.0f) {
+
+
+			}
+			else if (testNumber == 1 && accumulatedTime > 2.0f) {
+
+				linImpulse = vec3(-4.0f, 0.0f, 0.0f);
+				angImpulse = vec3(0.0f, 0.0f, 0.0f);
+			}
+			if (testNumber == 2 && accumulatedTime < 2.0f) {
+
+			}
+			else if (testNumber == 2 && accumulatedTime > 2.0f) {
+
+				linImpulse = vec3(-1.0f, 0.0f, 0.0f);
+				angImpulse = vec3(0.0f, 0.0f, -1.0f);
+			}
+
+			vec3 updatedVelocity = ApplyImpulseAtPoint(particle, linImpulse, angImpulse, impulsePoint);
+			// Directly use the updated velocity for the next Symplectic Euler update
+			impulse = updatedVelocity;
+
+			applyImpulse = false;
+		}
+
+		// handle the collision detection
 		contactPoints.clear(); // Clear previous contact points
 		CheckForCollision(particle, groundHeight, contactPoints);
 
-		// If there are contact points, handle the collision response
+		// If contact points, handle the collision response
 		if (!contactPoints.empty()) {
 
-
+			Impulse(particle, contactPoints);
 			ResolveCollision(particle, contactPoints, groundHeight);
 
 			p = particle.Position();
 			v = particle.Velocity();
 		}
-		else {
-			// If no collision, proceed with the regular update
-			vec3 totalAcceleration = acceleration; // Only external force is gravity
+			// If no collision, regular update
+			vec3 totalAcceleration = acceleration;
 
-			// Update position and velocity using the Symplectic Euler method
+			// Update position and velocity using Symplectic Euler
 			SymplecticEuler(p, v, particle.Mass(), totalAcceleration, impulse, deltaTime);
-		}
 
-		// Update the rigid body's rotation
+		// Update the rigid bodys rotation
 		UpdateRigidBodyRotation(particle, deltaTime);
 
 		// Set the updated position and velocity
 		particle.SetPosition(p);
 		particle.SetVelocity(v);
+
 	}
 }
-
-
-
 
 // This is called every frame, after Update
 void PhysicsEngine::Display(const mat4& viewMatrix, const mat4& projMatrix)
@@ -180,14 +250,35 @@ void PhysicsEngine::Display(const mat4& viewMatrix, const mat4& projMatrix)
 	ground.Draw(viewMatrix, projMatrix);
 }
 
-void PhysicsEngine::HandleInputKey(int keyCode, bool pressed)
-{
-	switch (keyCode)
-	{
+void PhysicsEngine::HandleInputKey(int keyCode, bool pressed) {
+	if (!pressed) return; // Only execute the logic when a key is pressed, not released.
+
+	switch (keyCode) {
 	case GLFW_KEY_1:
-		printf("Key 1 was %s\n", pressed ? "pressed" : "released");
-		break; // don't forget this at the end of every "case" statement!
-	default:
+		testNumber = 1;
 		break;
+	case GLFW_KEY_2:
+		testNumber = 2;
+		break;
+	default:
+		return; // Exit if neither '1' nor '2' is pressed.
 	}
+
+	// Reset states for all particles when '1' or '2' is pressed.
+	for (auto& particle : particles) {
+		particle.SetPosition(vec3(0.0f, 10.0f, 0.0f)); 
+		if (testNumber == 1) {
+			particle.SetVelocity(vec3(2.0f, 0.0f, 0.0f));
+		}
+		else {
+			particle.SetVelocity(vec3(0.0f));
+		}
+		particle.SetAngularVelocity(vec3(0.0f));  // Reset angular velocity
+		particle.SetOrientation(mat4(1.0f));
+	}
+
+	// Reset control variables
+	accumulatedTime = 0.f;
+	impulseApplied = false;
+	applyImpulse = false;  // Ensure impulses are not applied immediately
 }
