@@ -36,9 +36,12 @@ void CheckForCollision(RigidBody& rigidBody, float groundHeight, std::vector<vec
 	}
 }
 
+
+
 void ResolveCollision(RigidBody& rigidBody, const std::vector<vec3>& contactPoints, float groundHeight) {
 
 	if (contactPoints.empty()) return;
+
 
 	for (const auto& point : contactPoints) {
 		// Calculate penetration depth for each contact point
@@ -48,38 +51,44 @@ void ResolveCollision(RigidBody& rigidBody, const std::vector<vec3>& contactPoin
 		vec3 correction = vec3(0.0f, penetrationDepth, 0.0f);
 		rigidBody.SetPosition(rigidBody.Position() + correction);
 
-
 	}
 
 }
 
 void Impulse(RigidBody& rigidBody, const std::vector<vec3>& contactPoints) {
-
-	float coefficientOfRestitution = 0.8f;
+	const float velThres = 0.1f;
+	float coefficientOfRestitution = 0.7f;
+	float frictionCoefficient = 0.0f;
 
 	for (const auto& point : contactPoints) {
 		vec3 r = point - rigidBody.Position(); // Vector from COM to contact point
 		vec3 n = vec3(0, 1, 0); // Collision normal
 		vec3 V_rel = rigidBody.Velocity() + cross(rigidBody.AngularVelocity(), r); // Relative velocity at contact point
 
+		// Normal impulse calculation
 		float numerator = -(1 + coefficientOfRestitution) * dot(V_rel, n);
 		float term1 = 1 / rigidBody.Mass();
 		float term2 = dot(cross(r, n), cross(r, n) * rigidBody.InverseInertia());
 		float J = numerator / (term1 + term2); // Impulse magnitude
 
-		vec3 linearImpulse = J * n;
-		vec3 angularImpulse = cross(r, linearImpulse);
+		// Friction impulse calculation
+		vec3 tangent = normalize(V_rel - dot(V_rel, n) * n); // Tangential direction
+		float J_friction = dot(V_rel, tangent) / (term1 + term2); // Magnitude of friction impulse
+		J_friction = std::min(J_friction, J * frictionCoefficient); // Limit friction impulse
 
-		// Apply linear impulse
-		vec3 newVelocity = rigidBody.Velocity() + (linearImpulse / rigidBody.Mass());
-		rigidBody.SetVelocity(newVelocity);
+		vec3 frictionImpulse = -J_friction * tangent;
 
-		// Apply angular impulse
-		vec3 newAngularVelocity = rigidBody.AngularVelocity() + (rigidBody.InverseInertia() * angularImpulse);
-		rigidBody.SetAngularVelocity(newAngularVelocity);
+		// Apply impulses
+		rigidBody.SetVelocity(rigidBody.Velocity() + (J * n + frictionImpulse) / rigidBody.Mass());
+		rigidBody.SetAngularVelocity(rigidBody.AngularVelocity() + rigidBody.InverseInertia() * cross(r, J * n + frictionImpulse));
 
+		if (length(rigidBody.Velocity()) < velThres) {
+			rigidBody.SetVelocity(vec3(0.0f));
+		}
 	}
 }
+
+
 
 
 void UpdateRigidBodyRotation(RigidBody& rb, float dt) {
@@ -148,9 +157,9 @@ void PhysicsEngine::Init(Camera& camera, MeshDb& meshDb, ShaderDb& shaderDb)
 		particle.SetShader(defaultShader);
 		particle.SetColor(vec4(1.0f, 0.0f, 0.0f, 1.0f));
 		particle.SetPosition(vec3(0.0f, 10.0f, 0.0f));
-		particle.SetScale(vec3(2.0f, 6.0f, 2.0f));
+		particle.SetScale(vec3(1.0f, 3.0f, 1.0f));
 		particle.SetVelocity(vec3(0.0f, 0.0f, 0.0f));
-		particle.SetAngularVelocity(vec3(1.0f, 2.0f, 2.0f));
+		particle.SetAngularVelocity(vec3(100.0f, 0.0f, 0.0f));
 		particle.SetMass(1.0f);
 		particles.push_back(particle);
 	}
@@ -251,7 +260,7 @@ void PhysicsEngine::Display(const mat4& viewMatrix, const mat4& projMatrix)
 }
 
 void PhysicsEngine::HandleInputKey(int keyCode, bool pressed) {
-	if (!pressed) return; // Only execute the logic when a key is pressed, not released.
+	if (!pressed) return;
 
 	switch (keyCode) {
 	case GLFW_KEY_1:
@@ -261,10 +270,9 @@ void PhysicsEngine::HandleInputKey(int keyCode, bool pressed) {
 		testNumber = 2;
 		break;
 	default:
-		return; // Exit if neither '1' nor '2' is pressed.
+		return;
 	}
 
-	// Reset states for all particles when '1' or '2' is pressed.
 	for (auto& particle : particles) {
 		particle.SetPosition(vec3(0.0f, 10.0f, 0.0f)); 
 		if (testNumber == 1) {
@@ -273,12 +281,12 @@ void PhysicsEngine::HandleInputKey(int keyCode, bool pressed) {
 		else {
 			particle.SetVelocity(vec3(0.0f));
 		}
-		particle.SetAngularVelocity(vec3(0.0f));  // Reset angular velocity
+		particle.SetAngularVelocity(vec3(0.0f));
 		particle.SetOrientation(mat4(1.0f));
 	}
 
 	// Reset control variables
 	accumulatedTime = 0.f;
 	impulseApplied = false;
-	applyImpulse = false;  // Ensure impulses are not applied immediately
+	applyImpulse = false;
 }
